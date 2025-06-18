@@ -4,11 +4,9 @@ const cors = require("cors");
 const axios = require("axios");
 const app = express();
 
-app.use(cors()); // ✅ Allow cross-origin requests
+app.use(cors());
 
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
+const { CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN } = process.env;
 let accessToken = "";
 
 async function getAccessToken() {
@@ -27,29 +25,47 @@ async function getAccessToken() {
 app.get("/api/stores", async (req, res) => {
   try {
     await getAccessToken();
-    const response = await axios.get(
+    const ZohoRes = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report",
-      {
-        headers: {
-          Authorization: `Zoho-oauthtoken ${accessToken}`,
-          Accept: "application/json"
-        }
-      }
+      { headers: { Authorization: `Zoho-oauthtoken ${accessToken}` } }
     );
-
-const storeData = response.data.data.map(r => ({
-  name: r.Name,
-  address: r.Address.display_value || r.Address.address_line_1,
-  lat: isFinite(parseFloat(r.Address.latitude)) ? parseFloat(r.Address.latitude) : null,
-  lng: isFinite(parseFloat(r.Address.longitude)) ? parseFloat(r.Address.longitude) : null,
-  contact: r.Contact,
-  website: r.Website
-}));
-
+    const storeData = ZohoRes.data.data.map(r => ({
+      name: r.Name,
+      address: r.Address?.display_value,
+      lat: Number(r.Address?.latitude) || null,
+      lng: Number(r.Address?.longitude) || null,
+      contact: r.Contact,
+      website: r.Website
+    }));
     res.json(storeData);
   } catch (err) {
     console.error("Zoho API error:", err.response?.data || err.message);
     res.status(500).json({ error: "Failed to fetch Zoho data" });
+  }
+});
+
+app.get("/api/reviews", async (req, res) => {
+  try {
+    const storeName = req.query.store_name;
+    await getAccessToken();
+    const ZohoRes = await axios.get(
+      "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report",
+      {
+        params: { criteria: `(Store.first_name=="${storeName}")` },
+        headers: { Authorization: `Zoho-oauthtoken ${accessToken}` }
+      }
+    );
+    const reviews = ZohoRes.data.data.map(r => ({
+      customer: r.Customer,
+      rating: r.Rating,
+      review: r.Review,
+      image: r.Image?.[0]?.download_url || null,
+      date: r.Rating_Date
+    }));
+    res.json(reviews);
+  } catch (e) {
+    console.error("Error fetching reviews:", e.response?.data || e.message);
+    res.status(500).json({ error: "Failed to fetch reviews" });
   }
 });
 
