@@ -25,11 +25,13 @@ app.get("/api/stores", async (req, res) => {
   try {
     const accessToken = await getAccessToken();
 
-    const response = await axios.get("https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report", {
-      headers: {
-        Authorization: `Zoho-oauthtoken ${accessToken}`
-      }
-    });
+   const response = await axios.get("https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report", {
+  headers: {
+    Authorization: `Zoho-oauthtoken ${accessToken}`,
+    Accept: "application/json"
+  }
+});
+
 
     const storeData = response.data.data.map(record => ({
       name: record.Store_Name,
