@@ -1,13 +1,12 @@
 require("dotenv").config();
 const express = require("express");
-const cors = require("cors");              // ← add this
+const cors = require("cors");
 const axios = require("axios");
 const app = express();
 
-app.use(cors());                           // ← enable CORS for all routes
-app.use(express.json());                   // good practice for JSON APIs
+app.use(cors()); // ✅ Allow cross-origin requests
 
-const CLIENT_ID     = process.env.CLIENT_ID;
+const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 let accessToken = "";
@@ -27,9 +26,8 @@ async function getAccessToken() {
 
 app.get("/api/stores", async (req, res) => {
   try {
-    const accessToken = await getAccessToken();
-
-    const zohoRes = await axios.get(
+    await getAccessToken();
+    const response = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report",
       {
         headers: {
@@ -39,24 +37,22 @@ app.get("/api/stores", async (req, res) => {
       }
     );
 
-    const stores = zohoRes.data.data.map(record => ({
-      name:    record.Store_Name,
+    const storeData = response.data.data.map(record => ({
+      name: record.Store_Name,     // 📍 Ensure store name is included
       address: record.Address,
-      lat:     parseFloat(record.Latitude),
-      lng:     parseFloat(record.Longitude),
+      lat: parseFloat(record.Latitude),
+      lng: parseFloat(record.Longitude),
       contact: record.Contact,
-      email:   record.Email,
+      email: record.Email,
       website: record.Website
     }));
 
-    res.json(stores);
+    res.json(storeData);
   } catch (err) {
     console.error("Zoho API error:", err.response?.data || err.message);
     res.status(500).json({ error: "Failed to fetch Zoho data" });
   }
 });
 
-const PORT = process.env.PORT || process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
