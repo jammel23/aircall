@@ -1,7 +1,13 @@
 require("dotenv").config();
 const express = require("express");
+const cors = require("cors");         // ← Add this
 const axios = require("axios");
 const app = express();
+
+// 🛡️ Allow requests from your Shopify store domain
+app.use(cors({
+  origin: "https://rw42np-3p.myshopify.com"
+}));
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -25,13 +31,15 @@ app.get("/api/stores", async (req, res) => {
   try {
     const accessToken = await getAccessToken();
 
-   const response = await axios.get("https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report", {
-  headers: {
-    Authorization: `Zoho-oauthtoken ${accessToken}`,
-    Accept: "application/json"
-  }
-});
-
+    const response = await axios.get(
+      "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report",
+      {
+        headers: {
+          Authorization: `Zoho-oauthtoken ${accessToken}`,
+          Accept: "application/json"
+        }
+      }
+    );
 
     const storeData = response.data.data.map(record => ({
       name: record.Store_Name,
@@ -50,7 +58,7 @@ app.get("/api/stores", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
 });
