@@ -38,7 +38,7 @@ app.get("/api/stores", async (req, res) => {
     );
 
 const storeData = response.data.data.map(r => ({
-  name: r.Store_Name,
+  name: r.Name,
   address: r.Address.display_value || r.Address.address_line_1,
   lat: isFinite(parseFloat(r.Address.latitude)) ? parseFloat(r.Address.latitude) : null,
   lng: isFinite(parseFloat(r.Address.longitude)) ? parseFloat(r.Address.longitude) : null,
