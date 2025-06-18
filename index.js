@@ -40,8 +40,8 @@ app.get("/api/stores", async (req, res) => {
 const storeData = response.data.data.map(r => ({
   name: r.Store_Name,
   address: r.Address,
-  lat: parseFloat(r.Latitude),    // ensures number type
-  lng: parseFloat(r.Longitude),   // ensures number type
+  lat: isFinite(parseFloat(record.Latitude)) ? parseFloat(record.Latitude) : null,
+lng: isFinite(parseFloat(record.Longitude)) ? parseFloat(record.Longitude) : null,
   contact: r.Contact,
   website: r.Website
 }));
