@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
 const app = express();
@@ -17,11 +18,12 @@ async function getAccessToken() {
     }
   });
   accessToken = res.data.access_token;
+  return accessToken;
 }
 
 app.get("/api/stores", async (req, res) => {
   try {
-    if (!accessToken) await getAccessToken();
+    const accessToken = await getAccessToken();
 
     const response = await axios.get("https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report", {
       headers: {
@@ -41,10 +43,7 @@ app.get("/api/stores", async (req, res) => {
 
     res.json(storeData);
   } catch (err) {
-    if (err.response && err.response.status === 401) {
-      await getAccessToken();
-      return res.redirect("/api/stores");
-    }
+    console.error("Zoho API error:", err.response?.data || err.message);
     res.status(500).json({ error: "Failed to fetch Zoho data" });
   }
 });

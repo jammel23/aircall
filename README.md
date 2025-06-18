@@ -1,19 +1,29 @@
-# Store Review Backend
+# Store Review Backend (with .env support)
 
-This is a secure Node.js backend that fetches data from Zoho Creator and exposes it to the frontend via `/api/stores`.
+This is a secure Node.js backend that fetches store data from Zoho Creator using a refresh token and serves it at `/api/stores`.
 
-## How to Use
+## Setup
 
-1. Set up a `.env` or use environment variables:
-   - `CLIENT_ID`
-   - `CLIENT_SECRET`
-   - `REFRESH_TOKEN`
+1. Install dependencies:
 
-2. Deploy on Render, Vercel, or your own server.
+    ```
+    npm install
+    ```
 
-3. Access the store data at:
-   ```
-   GET /api/stores
-   ```
+2. Create a `.env` file in the root directory with the following keys:
 
-Data is sanitized for public consumption and safe for frontend use.
+    ```
+    CLIENT_ID=your_client_id
+    CLIENT_SECRET=your_client_secret
+    REFRESH_TOKEN=your_refresh_token
+    ```
+
+3. Run the server:
+
+    ```
+    node index.js
+    ```
+
+## Deployment
+
+For Render/Vercel, configure the 3 environment variables in the dashboard.
