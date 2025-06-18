@@ -63,41 +63,52 @@ app.get("/api/stores", async (req, res) => {
 });
 
 // Get reviews for a specific store
-app.get("/api/reviews", async (req, res) => {
-  const storeName = req.query.store_name;
-  if (!storeName) {
-    return res.status(400).json({ error: "Missing store_name query" });
-  }
+app.get("/api/stores", async (req, res) => {
+  // ...exists
 
+  const storeData = response.data.data.map(r => ({
+    name: r.Name,  // adjust to the exact field name in Zoho Creator
+    address: r.Address.display_value || r.Address.address_line_1,
+    lat: Number(r.Address.latitude),
+    lng: Number(r.Address.longitude),
+    contact: r.Contact,
+    website: r.Website
+  }));
+  res.json(storeData);
+});
+
+app.get("/api/reviews", async (req, res) => {
+  const { store_name } = req.query;
   try {
     await getAccessToken();
     const resp = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report",
       {
         params: {
-          criteria: `(Store.first_name == "${storeName}")`
+          criteria: `(Store.first_name == "${store_name}")`
         },
         headers: {
           Authorization: `Zoho-oauthtoken ${accessToken}`,
-          Accept: "application/json"
+          Accept: "application/json"  // 🟢 Important: accept JSON here
         }
       }
     );
 
     const reviews = resp.data.data.map(r => ({
-      customer: r.Customer || "",
-      rating: r.Rating || 0,
-      review: r.Review || "",
-      image: (r.Image && r.Image[0]?.thumbnail_url) || null,
-      date: r.Rating_Date || ""
+      customer: r.Customer,
+      rating: r.Rating,
+      review: r.Review,
+      image: r.Image?.[0]?.download_url || null,
+      date: r.Rating_Date
     }));
-
     res.json(reviews);
-  } catch (err) {
-    console.error("Zoho API error:", err.response?.data || err.message);
+
+  } catch (e) {
+    console.error("Error fetching reviews:", e.response?.data || e.message);
     res.status(500).json({ error: "Failed to fetch reviews" });
   }
 });
+
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
