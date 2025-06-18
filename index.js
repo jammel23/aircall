@@ -37,15 +37,15 @@ app.get("/api/stores", async (req, res) => {
       }
     );
 
-    const storeData = response.data.data.map(record => ({
-      name: record.Store_Name,     // 📍 Ensure store name is included
-      address: record.Address,
-      lat: parseFloat(record.Latitude),
-      lng: parseFloat(record.Longitude),
-      contact: record.Contact,
-      email: record.Email,
-      website: record.Website
-    }));
+const storeData = response.data.data.map(r => ({
+  name: r.Store_Name,
+  address: r.Address,
+  lat: parseFloat(r.Latitude),    // ensures number type
+  lng: parseFloat(r.Longitude),   // ensures number type
+  contact: r.Contact,
+  website: r.Website
+}));
+	
 
     res.json(storeData);
   } catch (err) {
