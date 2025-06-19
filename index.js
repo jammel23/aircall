@@ -25,7 +25,7 @@ async function getAccessToken() {
 }
 
 // Route to fetch raw Store_Report JSON
-app.get("/api/raw-store-report", async (req, res) => {
+app.get("/api/stores", async (req, res) => {
   try {
     await getAccessToken();
 
@@ -39,25 +39,6 @@ app.get("/api/raw-store-report", async (req, res) => {
       }
     );
 
-    res.json({
-      report: "Store_Report",
-      raw: storeResponse.data
-    });
-
-  } catch (err) {
-    console.error("Error fetching Store_Report:", err.response?.data || err.message);
-    res.status(500).json({
-      error: "Failed to fetch Store_Report",
-      details: err.response?.data || err.message
-    });
-  }
-});
-
-// Route to fetch raw Review_Report JSON
-app.get("/api/raw-review-report", async (req, res) => {
-  try {
-    await getAccessToken();
-
     const reviewResponse = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report",
       {
@@ -68,19 +49,21 @@ app.get("/api/raw-review-report", async (req, res) => {
       }
     );
 
+    // Return both raw responses in one payload
     res.json({
-      report: "Review_Report",
-      raw: reviewResponse.data
+      storeReport: storeResponse.data,
+      reviewReport: reviewResponse.data
     });
 
   } catch (err) {
-    console.error("Error fetching Review_Report:", err.response?.data || err.message);
+    console.error("Zoho API error:", err.response?.data || err.message);
     res.status(500).json({
-      error: "Failed to fetch Review_Report",
+      error: "Failed to fetch Zoho data",
       details: err.response?.data || err.message
     });
   }
 });
+
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
