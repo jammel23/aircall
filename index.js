@@ -93,7 +93,8 @@ app.get("/api/stores", async (req, res) => {
         contact: r.Contact,
         website: r.Website,
         // Include raw address data for debugging
-        rawAddress: r.Address
+        rawAddress: r.Address,
+	    review: "testreview"
       };
     });
 
