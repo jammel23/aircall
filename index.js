@@ -4,7 +4,7 @@ const cors = require("cors");
 const axios = require("axios");
 const app = express();
 
-app.use(cors()); // ✅ Allow cross-origin requests
+app.use(cors());
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
@@ -37,14 +37,26 @@ app.get("/api/stores", async (req, res) => {
       }
     );
 
-const storeData = response.data.data.map(r => ({
-  name: r.Name,
-  address: r.Address.display_value || r.Address.address_line_1,
-  lat: isFinite(parseFloat(r.Address.latitude)) ? parseFloat(r.Address.latitude) : null,
-  lng: isFinite(parseFloat(r.Address.longitude)) ? parseFloat(r.Address.longitude) : null,
-  contact: r.Contact,
-  website: r.Website
-}));
+    const storeData = response.data.data.map(r => {
+      const addr = r.Address; // Zoho Address object
+      const parts = [
+        addr.address_line_1,
+        addr.address_line_2,
+        addr.city,
+        addr.state,
+        addr.zip,
+        addr.country
+      ].filter(Boolean); // remove empty segments
+
+      return {
+        name: r.Name,
+        address: parts.join(', '),
+        lat: isFinite(parseFloat(addr.latitude)) ? parseFloat(addr.latitude) : null,
+        lng: isFinite(parseFloat(addr.longitude)) ? parseFloat(addr.longitude) : null,
+        contact: r.Contact,
+        website: r.Website
+      };
+    });
 
     res.json(storeData);
   } catch (err) {
