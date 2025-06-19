@@ -1,43 +1,33 @@
-// index.js
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
 const app = express();
 
-app.use(cors()); // 💡 Enable CORS for fetch from frontend
+app.use(cors());
 
-const {
-  CLIENT_ID,
-  CLIENT_SECRET,
-  REFRESH_TOKEN,
-  PORT = 10000
-} = process.env;
-
+const CLIENT_ID = process.env.CLIENT_ID;
+const CLIENT_SECRET = process.env.CLIENT_SECRET;
+const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 let accessToken = "";
 
-async function refreshToken() {
-  const resp = await axios.post(
-    "https://accounts.zoho.com/oauth/v2/token",
-    null,
-    {
-      params: {
-        refresh_token: REFRESH_TOKEN,
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-        grant_type: "refresh_token"
-      }
+async function getAccessToken() {
+  const res = await axios.post("https://accounts.zoho.com/oauth/v2/token", null, {
+    params: {
+      refresh_token: REFRESH_TOKEN,
+      client_id: CLIENT_ID,
+      client_secret: CLIENT_SECRET,
+      grant_type: "refresh_token"
     }
-  );
-  accessToken = resp.data.access_token;
+  });
+  accessToken = res.data.access_token;
+  return accessToken;
 }
 
-// 🔎 GET /api/stores — returns stores with full address components
 app.get("/api/stores", async (req, res) => {
   try {
-    await refreshToken();
-
-    const resp = await axios.get(
+    await getAccessToken();
+    const response = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report",
       {
         headers: {
@@ -47,74 +37,75 @@ app.get("/api/stores", async (req, res) => {
       }
     );
 
-    const stores = resp.data.data.map(r => ({
-      id: r.id,
-      name: r.Name,
-      address: r.Address.display_value,
-      addressComponents: {
-        line1: r.Address.address_line_1,
-        line2: r.Address.address_line_2,
-        city: r.Address.city,
-        state: r.Address.state,
-        postalCode: r.Address.postal_code,
-        country: r.Address.country
-      },
-      coordinates: {
-        lat: parseFloat(r.Address.latitude),
-        lng: parseFloat(r.Address.longitude)
-      },
-      contact: r.Contact,
-      email: r.Email,
-      website: r.Website
-    }));
-
-    res.json(stores);
-  } catch (err) {
-    console.error("Zoho Stores API error:", err.response?.data || err);
-    res.status(500).json({ error: "Failed to fetch store data" });
-  }
-});
-
-// 📝 GET /api/reviews?store_name=SomeStore — returns reviews with image (if any)
-app.get("/api/reviews", async (req, res) => {
-  const { store_name } = req.query;
-  if (!store_name) {
-    return res.status(400).json({ error: "Missing store_name query parameter" });
-  }
-
-  try {
-    await refreshToken();
-
-    const resp = await axios.get(
-      "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report",
-      {
-        headers: {
-          Authorization: `Zoho-oauthtoken ${accessToken}`,
-          Accept: "application/json"
-        },
-        params: {
-          criteria: `(Store.first_name == "${store_name}")`
-        }
+    const storeData = response.data.data.map(r => {
+      // Debugging: Log the full address structure to see what we're working with
+      console.log("Full Address Object:", r.Address);
+      
+      // Handle different possible address structures
+      let addressParts = [];
+      
+      // Case 1: Address is a string in display_value
+      if (r.Address && r.Address.display_value) {
+        addressParts.push(r.Address.display_value);
+      } 
+      // Case 2: Address has separate components
+      else if (r.Address) {
+        const addr = r.Address;
+        addressParts = [
+          addr.address_line_1,
+          addr.address_line_2,
+          addr.city,
+          addr.state,
+          addr.zip,
+          addr.country
+        ].filter(Boolean);
       }
-    );
+      // Case 3: Address might be in a different field
+      else if (r['Address_Line_1']) {
+        addressParts = [
+          r['Address_Line_1'],
+          r['Address_Line_2'],
+          r.City,
+          r.State,
+          r.ZIP,
+          r.Country
+        ].filter(Boolean);
+      }
+      
+      // Extract latitude and longitude with more robust checking
+      const lat = parseFloat(r.Address?.latitude || r.Latitude || r.lat);
+      const lng = parseFloat(r.Address?.longitude || r.Longitude || r.lng);
+      
+      return {
+        name: r.Name,
+        address: addressParts.join(', '),
+        // Include separate address components for easier access
+        addressComponents: {
+          line1: r.Address?.address_line_1 || r['Address_Line_1'],
+          line2: r.Address?.address_line_2 || r['Address_Line_2'],
+          city: r.Address?.city || r.City,
+          state: r.Address?.state || r.State,
+          zip: r.Address?.zip || r.ZIP,
+          country: r.Address?.country || r.Country
+        },
+        lat: isFinite(lat) ? lat : null,
+        lng: isFinite(lng) ? lng : null,
+        contact: r.Contact,
+        website: r.Website,
+        // Include raw address data for debugging
+        rawAddress: r.Address
+      };
+    });
 
-    const reviews = resp.data.data.map(r => ({
-      id: r.id,
-      customer: r.Customer,
-      rating: r.Rating,
-      review: r.Review,
-      image: r.Image?.[0]?.download_url || null,
-      date: r.Rating_Date
-    }));
-
-    res.json(reviews);
+    res.json(storeData);
   } catch (err) {
-    console.error("Zoho Reviews API error:", err.response?.data || err);
-    res.status(500).json({ error: "Failed to fetch review data" });
+    console.error("Zoho API error:", err.response?.data || err.message);
+    res.status(500).json({ 
+      error: "Failed to fetch Zoho data",
+      details: err.response?.data || err.message 
+    });
   }
 });
 
-// 🚀 Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
