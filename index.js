@@ -14,7 +14,7 @@ const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 
 let accessToken = "";
 
-// 🔐 Get Zoho access token
+// 🔐 Get Zoho OAuth access token
 async function getAccessToken() {
   const res = await axios.post("https://accounts.zoho.com/oauth/v2/token", null, {
     params: {
@@ -28,11 +28,11 @@ async function getAccessToken() {
   return accessToken;
 }
 
-// 🎒 Upload middleware
+// 🧰 Multer middleware
 const upload = multer({ storage: multer.memoryStorage() });
 
 /**
- * 📥 POST /api/reviews – submit review with optional image
+ * 📥 POST /api/reviews — submits a review to Zoho Creator
  */
 app.post("/api/reviews", upload.single("Image"), async (req, res) => {
   try {
@@ -45,14 +45,12 @@ app.post("/api/reviews", upload.single("Image"), async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // Match Zoho Creator expected structure
+    // ✅ Payload formatted for Zoho Creator field types
     const reviewData = {
-      Store,
+      Store: { ID: Store },
+      Customer: { first_name: Customer_name },
       Review,
-      Rating: parseInt(Rating, 10),
-      Customer: {
-        first_name: Customer_name
-      }
+      Rating: parseInt(Rating, 10)
     };
 
     const formData = new FormData();
@@ -88,7 +86,7 @@ app.post("/api/reviews", upload.single("Image"), async (req, res) => {
 });
 
 /**
- * 📤 GET /api/stores – fetch all stores and their reviews
+ * 📤 GET /api/stores — returns store + review data
  */
 app.get("/api/stores", async (req, res) => {
   try {
@@ -143,6 +141,6 @@ app.get("/api/stores", async (req, res) => {
   }
 });
 
-// 🚀 Start server
+// 🚀 Start the server
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Server listening on port ${PORT}`));
