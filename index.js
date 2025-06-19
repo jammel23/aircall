@@ -24,11 +24,11 @@ async function getAccessToken() {
   return accessToken;
 }
 
-app.get("/api/stores", async (req, res) => {
+// Route to fetch raw Store_Report JSON
+app.get("/api/raw-store-report", async (req, res) => {
   try {
     await getAccessToken();
 
-    // --- Fetch Stores ---
     const storeResponse = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report",
       {
@@ -39,36 +39,25 @@ app.get("/api/stores", async (req, res) => {
       }
     );
 
-    const storeData = storeResponse.data.data.map(r => {
-      const addr = r.Address || {};
-      const addressParts = addr.display_value
-        ? [addr.display_value]
-        : [addr.address_line_1, addr.address_line_2, addr.city, addr.state, addr.zip, addr.country].filter(Boolean);
-
-      const lat = parseFloat(addr.latitude || r.Latitude || r.lat);
-      const lng = parseFloat(addr.longitude || r.Longitude || r.lng);
-
-      return {
-        name: r.Name,
-        address: addressParts.join(", "),
-        addressComponents: {
-          line1: addr.address_line_1 || r["Address_Line_1"],
-          line2: addr.address_line_2 || r["Address_Line_2"],
-          city: addr.city || r.City,
-          state: addr.state || r.State,
-          zip: addr.zip || r.ZIP,
-          country: addr.country || r.Country
-        },
-        lat: isFinite(lat) ? lat : null,
-        lng: isFinite(lng) ? lng : null,
-        contact: r.Contact || null,
-        website: r.Website || null,
-        rawAddress: addr,
-        review: "placeholder"  // We'll override this later
-      };
+    res.json({
+      report: "Store_Report",
+      raw: storeResponse.data
     });
 
-    // --- Fetch Reviews ---
+  } catch (err) {
+    console.error("Error fetching Store_Report:", err.response?.data || err.message);
+    res.status(500).json({
+      error: "Failed to fetch Store_Report",
+      details: err.response?.data || err.message
+    });
+  }
+});
+
+// Route to fetch raw Review_Report JSON
+app.get("/api/raw-review-report", async (req, res) => {
+  try {
+    await getAccessToken();
+
     const reviewResponse = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report",
       {
@@ -79,33 +68,15 @@ app.get("/api/stores", async (req, res) => {
       }
     );
 
-    const reviews = reviewResponse.data.data;
-
-    // --- Merge Reviews into Stores by Contact or Name (simplified) ---
-    const enrichedStores = storeData.map(store => {
-      /*const matchingReview = reviews.find(
-        r => r.Contact === store.contact || r.Store_Name?.display_value === store.name
-      );*/
-
-const matchingReview = reviews.find(
-        r => r.Reviews
-      );
-	  
-      return {
-        ...store,
-      
-		  review2:  matchingReview ,
-        rating: matchingReview?.Rating || null
-      };
+    res.json({
+      report: "Review_Report",
+      raw: reviewResponse.data
     });
 
-    // --- Respond with JSON ---
-    res.json(enrichedStores);
-
   } catch (err) {
-    console.error("Zoho API error:", err.response?.data || err.message);
+    console.error("Error fetching Review_Report:", err.response?.data || err.message);
     res.status(500).json({
-      error: "Failed to fetch Zoho data",
+      error: "Failed to fetch Review_Report",
       details: err.response?.data || err.message
     });
   }
