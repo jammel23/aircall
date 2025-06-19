@@ -1,103 +1,81 @@
+// index.js
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
 const app = express();
 
-app.use(cors()); // Enable CORS
+app.use(cors()); // 💡 Enable CORS for fetch from frontend
 
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
-const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
+const {
+  CLIENT_ID,
+  CLIENT_SECRET,
+  REFRESH_TOKEN,
+  PORT = 10000
+} = process.env;
+
 let accessToken = "";
 
-// Get Zoho OAuth token
-async function getAccessToken() {
-  try {
-    const res = await axios.post(
-      "https://accounts.zoho.com/oauth/v2/token",
-      null,
-      {
-        params: {
-          refresh_token: REFRESH_TOKEN,
-          client_id: CLIENT_ID,
-          client_secret: CLIENT_SECRET,
-          grant_type: "refresh_token",
-        },
-        timeout: 5000 // Prevent hanging requests
+async function refreshToken() {
+  const resp = await axios.post(
+    "https://accounts.zoho.com/oauth/v2/token",
+    null,
+    {
+      params: {
+        refresh_token: REFRESH_TOKEN,
+        client_id: CLIENT_ID,
+        client_secret: CLIENT_SECRET,
+        grant_type: "refresh_token"
       }
-    );
-    accessToken = res.data.access_token;
-    return accessToken;
-  } catch (error) {
-    console.error("Failed to refresh access token:", error.message);
-    throw new Error("Failed to authenticate with Zoho");
-  }
+    }
+  );
+  accessToken = resp.data.access_token;
 }
 
-// Fetch stores
+// 🔎 GET /api/stores — returns stores with full address components
 app.get("/api/stores", async (req, res) => {
   try {
-    await getAccessToken();
-    const response = await axios.get(
+    await refreshToken();
+
+    const resp = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report",
       {
         headers: {
           Authorization: `Zoho-oauthtoken ${accessToken}`,
-          Accept: "application/json",
-        },
-        timeout: 10000 // 10-second timeout
+          Accept: "application/json"
+        }
       }
     );
 
-    if (!response.data || !Array.isArray(response.data.data)) {
-      throw new Error("Invalid data format from Zoho");
-    }
-
-    const stores = response.data.data.map((store) => {
-      const addr = store.Address || {};
-      const addressParts = [
-        addr.display_value || addr.address_line_1,
-        addr.city,
-        addr.state,
-        addr.zip,
-        addr.country
-      ].filter(Boolean);
-
-      return {
-        id: store.ID || store.id || null,
-        name: store.Name || "Unnamed Store",
-        address: addressParts.join(", "),
-        addressComponents: {
-          line1: addr.address_line_1,
-          line2: addr.address_line_2,
-          city: addr.city,
-          state: addr.state,
-          zip: addr.zip,
-          country: addr.country,
-          displayValue: addr.display_value
-        },
-        coordinates: {
-          lat: parseFloat(addr.latitude) || null,
-          lng: parseFloat(addr.longitude) || null
-        },
-        contact: store.Contact || "",
-        email: store.Email || "",
-        website: store.Website || "",
-      };
-    });
+    const stores = resp.data.data.map(r => ({
+      id: r.id,
+      name: r.Name,
+      address: r.Address.display_value,
+      addressComponents: {
+        line1: r.Address.address_line_1,
+        line2: r.Address.address_line_2,
+        city: r.Address.city,
+        state: r.Address.state,
+        postalCode: r.Address.postal_code,
+        country: r.Address.country
+      },
+      coordinates: {
+        lat: parseFloat(r.Address.latitude),
+        lng: parseFloat(r.Address.longitude)
+      },
+      contact: r.Contact,
+      email: r.Email,
+      website: r.Website
+    }));
 
     res.json(stores);
-  } catch (error) {
-    console.error("Zoho API error:", error.response?.data || error.message);
-    res.status(500).json({ 
-      error: "Failed to fetch stores",
-      details: error.response?.data || error.message 
-    });
+  } catch (err) {
+    console.error("Zoho Stores API error:", err.response?.data || err);
+    res.status(500).json({ error: "Failed to fetch store data" });
   }
 });
 
-// Fetch reviews
+// 📝 GET /api/reviews?store_name=SomeStore — returns reviews with image (if any)
 app.get("/api/reviews", async (req, res) => {
   const { store_name } = req.query;
   if (!store_name) {
@@ -105,9 +83,9 @@ app.get("/api/reviews", async (req, res) => {
   }
 
   try {
-    await getAccessToken();
+    await refreshToken();
 
-    const response = await axios.get(
+    const resp = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report",
       {
         headers: {
@@ -120,34 +98,23 @@ app.get("/api/reviews", async (req, res) => {
       }
     );
 
-    const reviews = response.data.data.map(r => ({
-      customer: r.Customer || "Anonymous",
-      rating: r.Rating || null,
-      review: r.Review || "",
+    const reviews = resp.data.data.map(r => ({
+      id: r.id,
+      customer: r.Customer,
+      rating: r.Rating,
+      review: r.Review,
       image: r.Image?.[0]?.download_url || null,
-      date: r.Rating_Date || null
+      date: r.Rating_Date
     }));
 
     res.json(reviews);
   } catch (err) {
-    console.error("Zoho Reviews API error:", err.response?.data || err.message);
+    console.error("Zoho Reviews API error:", err.response?.data || err);
     res.status(500).json({ error: "Failed to fetch review data" });
   }
 });
-}
 
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "healthy" });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error("Server error:", err.stack);
-  res.status(500).json({ error: "Internal server error" });
-});
-
-const PORT = process.env.PORT || 10000;
+// 🚀 Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
