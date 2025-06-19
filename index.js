@@ -4,14 +4,14 @@ const cors = require("cors");
 const axios = require("axios");
 const app = express();
 
-app.use(cors());
+app.use(cors()); // Enable CORS
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 let accessToken = "";
 
-// Improved error handling for token refresh
+// Get Zoho OAuth token
 async function getAccessToken() {
   try {
     const res = await axios.post(
@@ -24,7 +24,7 @@ async function getAccessToken() {
           client_secret: CLIENT_SECRET,
           grant_type: "refresh_token",
         },
-        timeout: 5000 // Add timeout to prevent hanging
+        timeout: 5000 // Prevent hanging requests
       }
     );
     accessToken = res.data.access_token;
@@ -35,15 +35,7 @@ async function getAccessToken() {
   }
 }
 
-// Add rate limiting middleware
-const rateLimit = require("express-rate-limit");
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
-});
-app.use(limiter);
-
-// Improved stores endpoint with better address handling
+// Fetch stores
 app.get("/api/stores", async (req, res) => {
   try {
     await getAccessToken();
@@ -54,7 +46,7 @@ app.get("/api/stores", async (req, res) => {
           Authorization: `Zoho-oauthtoken ${accessToken}`,
           Accept: "application/json",
         },
-        timeout: 10000
+        timeout: 10000 // 10-second timeout
       }
     );
 
@@ -64,8 +56,6 @@ app.get("/api/stores", async (req, res) => {
 
     const stores = response.data.data.map((store) => {
       const addr = store.Address || {};
-      
-      // Handle both display_value and separate components
       const addressParts = [
         addr.display_value || addr.address_line_1,
         addr.city,
@@ -75,10 +65,10 @@ app.get("/api/stores", async (req, res) => {
       ].filter(Boolean);
 
       return {
-        id: store.ID || store.id || null, // Include ID for reference
+        id: store.ID || store.id || null,
         name: store.Name || "Unnamed Store",
         address: addressParts.join(", "),
-        addressComponents: { // Include structured address components
+        addressComponents: {
           line1: addr.address_line_1,
           line2: addr.address_line_2,
           city: addr.city,
@@ -92,9 +82,8 @@ app.get("/api/stores", async (req, res) => {
           lng: parseFloat(addr.longitude) || null
         },
         contact: store.Contact || "",
-        email: store.Email || "", // Added email if available
+        email: store.Email || "",
         website: store.Website || "",
-        rawData: store // Include raw data for debugging
       };
     });
 
@@ -108,7 +97,7 @@ app.get("/api/stores", async (req, res) => {
   }
 });
 
-// Enhanced reviews endpoint
+// Fetch reviews
 app.get("/api/reviews", async (req, res) => {
   try {
     const storeName = req.query.store;
@@ -171,5 +160,4 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
 });
