@@ -116,10 +116,27 @@ app.get("/api/stores", async (req, res) => {
       // Handle different possible address structures
       let addressParts = [];
       
-      return {
-        rating: r.rating,
-       
+     return {
+        name: r.Rating,
+        address: "",
+        // Include separate address components for easier access
+        addressComponents: {
+          line1: "",
+          line2: "",
+          city: "",
+          state: "",
+          zip: "",
+          country: "",
+        },
+        lat: isFinite(lat) ? lat : null,
+        lng: isFinite(lng) ? lng : null,
+        contact: r.Contact,
+        website: r.Website,
+        // Include raw address data for debugging
+        rawAddress: r.Address,
+	    review: "testreview"
       };
+    
     });
     res.json(storeDataReview);
   } catch (err) {
