@@ -14,7 +14,7 @@ const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 
 let accessToken = "";
 
-// 🪙 Refresh access token
+// 🔐 Get Zoho access token
 async function getAccessToken() {
   const res = await axios.post("https://accounts.zoho.com/oauth/v2/token", null, {
     params: {
@@ -28,30 +28,35 @@ async function getAccessToken() {
   return accessToken;
 }
 
-// 🧠 Multer setup to handle image uploads in memory
+// 🎒 Upload middleware
 const upload = multer({ storage: multer.memoryStorage() });
 
 /**
- * 📥 Submit new Review to Zoho Creator
+ * 📥 POST /api/reviews – submit review with optional image
  */
 app.post("/api/reviews", upload.single("Image"), async (req, res) => {
   try {
     await getAccessToken();
 
-    const { Store, Customer, Review, Rating } = req.body;
+    const { Store, Customer_name, Review, Rating } = req.body;
     const file = req.file;
 
-    if (!Store || !Customer || !Review || !Rating) {
+    if (!Store || !Customer_name || !Review || !Rating) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const formData = new FormData();
-    formData.append("data", JSON.stringify({
+    // Match Zoho Creator expected structure
+    const reviewData = {
       Store,
-      Customer_name,
       Review,
-      Rating: parseInt(Rating, 10)
-    }));
+      Rating: parseInt(Rating, 10),
+      Customer: {
+        first_name: Customer_name
+      }
+    };
+
+    const formData = new FormData();
+    formData.append("data", JSON.stringify(reviewData));
 
     if (file) {
       formData.append("Image", file.buffer, {
@@ -83,7 +88,7 @@ app.post("/api/reviews", upload.single("Image"), async (req, res) => {
 });
 
 /**
- * 📤 Return combined data from Store_Report and Review_Report
+ * 📤 GET /api/stores – fetch all stores and their reviews
  */
 app.get("/api/stores", async (req, res) => {
   try {
