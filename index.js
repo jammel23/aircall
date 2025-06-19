@@ -11,7 +11,7 @@ const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 let accessToken = "";
 
-// Function to get access token using refresh token
+// Get Zoho OAuth access token
 async function getAccessToken() {
   const res = await axios.post("https://accounts.zoho.com/oauth/v2/token", null, {
     params: {
@@ -25,12 +25,11 @@ async function getAccessToken() {
   return accessToken;
 }
 
-// API route to fetch filtered Store and Review reports
+// API route to return filtered data from both Store_Report and Review_Report
 app.get("/api/stores", async (req, res) => {
   try {
     await getAccessToken();
 
-    // Fetch Store_Report and Review_Report concurrently
     const [storeResponse, reviewResponse] = await Promise.all([
       axios.get("https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report", {
         headers: {
@@ -46,7 +45,7 @@ app.get("/api/stores", async (req, res) => {
       })
     ]);
 
-    // Format Store Report with selected fields
+    // Format Store Report
     const formattedStores = storeResponse.data.data.map(store => ({
       Store: store.Name?.zc_display_value || "",
       ID: store.ID,
@@ -58,16 +57,16 @@ app.get("/api/stores", async (req, res) => {
       Contact: store.Contact || ""
     }));
 
-    // Format Review Report with selected fields
+    // Format Review Report (includes Customer first_name)
     const formattedReviews = reviewResponse.data.data.map(review => ({
       Store: review.Store?.zc_display_value || "",
       ID: review.ID,
+      Customer_first_name: review.Customer?.first_name || "",
       Review: review.Review || "",
       Image: review.Image || "",
       Rating: review.Rating || ""
     }));
 
-    // Respond with cleaned-up reports
     res.json({
       storeReport: formattedStores,
       reviewReport: formattedReviews
@@ -82,6 +81,6 @@ app.get("/api/stores", async (req, res) => {
   }
 });
 
-// Server listener
+// Start server
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
