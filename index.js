@@ -93,7 +93,7 @@ const matchingReview = reviews.find(
 	  
       return {
         ...store,
-        review:  matchingReview.Reviews ,
+      
 		  review2:  matchingReview ,
         rating: matchingReview?.Rating || null
       };
