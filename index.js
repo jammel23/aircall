@@ -5,13 +5,13 @@ const axios = require("axios");
 
 const app = express();
 app.use(cors());
+app.use(express.json()); // to parse JSON request body
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 let accessToken = "";
 
-// Get Zoho OAuth access token
 async function getAccessToken() {
   const res = await axios.post("https://accounts.zoho.com/oauth/v2/token", null, {
     params: {
@@ -25,7 +25,7 @@ async function getAccessToken() {
   return accessToken;
 }
 
-// API route to return filtered data from both Store_Report and Review_Report
+// GET route to fetch store + review data
 app.get("/api/stores", async (req, res) => {
   try {
     await getAccessToken();
@@ -45,7 +45,6 @@ app.get("/api/stores", async (req, res) => {
       })
     ]);
 
-    // Format Store Report
     const formattedStores = storeResponse.data.data.map(store => ({
       Store: store.Name?.zc_display_value || "",
       ID: store.ID,
@@ -57,7 +56,6 @@ app.get("/api/stores", async (req, res) => {
       Contact: store.Contact || ""
     }));
 
-    // Format Review Report (includes Customer first_name)
     const formattedReviews = reviewResponse.data.data.map(review => ({
       Store: review.Store?.zc_display_value || "",
       ID: review.ID,
@@ -81,6 +79,44 @@ app.get("/api/stores", async (req, res) => {
   }
 });
 
-// Start server
+// POST route to submit a new review
+app.post("/api/reviews", async (req, res) => {
+  try {
+    await getAccessToken();
+
+    const { Store, Customer_name, Review, Rating } = req.body;
+
+    if (!Store || !Customer_name || !Review || !Rating) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const createResponse = await axios.post(
+      "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/form/Review",
+      {
+        data: {
+          Store,
+          Customer_name,
+          Review,
+          Rating
+        }
+      },
+      {
+        headers: {
+          Authorization: `Zoho-oauthtoken ${accessToken}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
+
+    res.status(201).json({ message: "Review submitted successfully", response: createResponse.data });
+  } catch (err) {
+    console.error("Error creating review:", err.response?.data || err.message);
+    res.status(500).json({
+      error: "Failed to submit review",
+      details: err.response?.data || err.message
+    });
+  }
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
