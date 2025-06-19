@@ -2,8 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
-const app = express();
 
+const app = express();
 app.use(cors());
 
 const CLIENT_ID = process.env.CLIENT_ID;
@@ -27,7 +27,9 @@ async function getAccessToken() {
 app.get("/api/stores", async (req, res) => {
   try {
     await getAccessToken();
-    const response = await axios.get(
+
+    // --- Fetch Stores ---
+    const storeResponse = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report",
       {
         headers: {
@@ -36,70 +38,38 @@ app.get("/api/stores", async (req, res) => {
         }
       }
     );
-	
-    const storeData = response.data.data.map(r => {
-      // Debugging: Log the full address structure to see what we're working with
-      console.log("Full Address Object:", r.Address);
-      
-      // Handle different possible address structures
-      let addressParts = [];
-      
-      // Case 1: Address is a string in display_value
-      if (r.Address && r.Address.display_value) {
-        addressParts.push(r.Address.display_value);
-      } 
-      // Case 2: Address has separate components
-      else if (r.Address) {
-        const addr = r.Address;
-        addressParts = [
-          addr.address_line_1,
-          addr.address_line_2,
-          addr.city,
-          addr.state,
-          addr.zip,
-          addr.country
-        ].filter(Boolean);
-      }
-      // Case 3: Address might be in a different field
-      else if (r['Address_Line_1']) {
-        addressParts = [
-          r['Address_Line_1'],
-          r['Address_Line_2'],
-          r.City,
-          r.State,
-          r.ZIP,
-          r.Country
-        ].filter(Boolean);
-      }
-      
-      // Extract latitude and longitude with more robust checking
-      const lat = parseFloat(r.Address?.latitude || r.Latitude || r.lat);
-      const lng = parseFloat(r.Address?.longitude || r.Longitude || r.lng);
-      
+
+    const storeData = storeResponse.data.data.map(r => {
+      const addr = r.Address || {};
+      const addressParts = addr.display_value
+        ? [addr.display_value]
+        : [addr.address_line_1, addr.address_line_2, addr.city, addr.state, addr.zip, addr.country].filter(Boolean);
+
+      const lat = parseFloat(addr.latitude || r.Latitude || r.lat);
+      const lng = parseFloat(addr.longitude || r.Longitude || r.lng);
+
       return {
         name: r.Name,
-        address: addressParts.join(', '),
-        // Include separate address components for easier access
+        address: addressParts.join(", "),
         addressComponents: {
-          line1: r.Address?.address_line_1 || r['Address_Line_1'],
-          line2: r.Address?.address_line_2 || r['Address_Line_2'],
-          city: r.Address?.city || r.City,
-          state: r.Address?.state || r.State,
-          zip: r.Address?.zip || r.ZIP,
-          country: r.Address?.country || r.Country
+          line1: addr.address_line_1 || r["Address_Line_1"],
+          line2: addr.address_line_2 || r["Address_Line_2"],
+          city: addr.city || r.City,
+          state: addr.state || r.State,
+          zip: addr.zip || r.ZIP,
+          country: addr.country || r.Country
         },
         lat: isFinite(lat) ? lat : null,
         lng: isFinite(lng) ? lng : null,
-        contact: r.Contact,
-        website: r.Website,
-        // Include raw address data for debugging
-        rawAddress: r.Address,
-	    review: "testreview"
+        contact: r.Contact || null,
+        website: r.Website || null,
+        rawAddress: addr,
+        review: "placeholder"  // We'll override this later
       };
     });
 
-
-	const responseReview = await axios.get(
+    // --- Fetch Reviews ---
+    const reviewResponse = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report",
       {
         headers: {
@@ -108,42 +78,30 @@ app.get("/api/stores", async (req, res) => {
         }
       }
     );
-	
-    const storeDataReview = responseReview.data.data.map(r => {
-      // Debugging: Log the full address structure to see what we're working with
-      console.log("Full Address Object:", r.Review);
-      
-      // Handle different possible address structures
-      let addressParts = [];
-      
-     return {
-        name: r.Rating,
-        address: "",
-        // Include separate address components for easier access
-        addressComponents: {
-          line1: "",
-          line2: "",
-          city: "",
-          state: "",
-          zip: "",
-          country: "",
-        },
-        lat: isFinite(lat) ? lat : null,
-        lng: isFinite(lng) ? lng : null,
-        contact: r.Contact,
-        website: r.Website,
-        // Include raw address data for debugging
-        rawAddress: r.Address,
-	    review: "testreview"
+
+    const reviews = reviewResponse.data.data;
+
+    // --- Merge Reviews into Stores by Contact or Name (simplified) ---
+    const enrichedStores = storeData.map(store => {
+      const matchingReview = reviews.find(
+        r => r.Contact === store.contact || r.Store_Name?.display_value === store.name
+      );
+
+      return {
+        ...store,
+        review: matchingReview ? matchingReview.Review_Text || "No review text" : "No review found",
+        rating: matchingReview?.Rating || null
       };
-    
     });
-    res.json(storeDataReview);
+
+    // --- Respond with JSON ---
+    res.json(enrichedStores);
+
   } catch (err) {
     console.error("Zoho API error:", err.response?.data || err.message);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to fetch Zoho data",
-      details: err.response?.data || err.message 
+      details: err.response?.data || err.message
     });
   }
 });
