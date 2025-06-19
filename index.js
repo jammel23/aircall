@@ -24,11 +24,11 @@ async function getAccessToken() {
   return accessToken;
 }
 
+// Route to fetch raw Store_Report JSON
 app.get("/api/stores", async (req, res) => {
   try {
     await getAccessToken();
 
-    // --- Fetch Store Report ---
     const storeResponse = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Store_Report",
       {
@@ -39,21 +39,6 @@ app.get("/api/stores", async (req, res) => {
       }
     );
 
-    const stores = storeResponse.data.data.map(item => {
-      const name = item.Name || {};
-      const address = item.Address || {};
-
-      return {
-        first_name: name.first_name?.trim() || "",
-        zc_display_value: name.zc_display_value?.trim() || "",
-        latitude: parseFloat(address.latitude) || null,
-        longitude: parseFloat(address.longitude) || null,
-        contact: item.Contact || "",
-        email: item.Email || ""
-      };
-    });
-
-    // --- Fetch Review Report ---
     const reviewResponse = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report",
       {
@@ -64,20 +49,10 @@ app.get("/api/stores", async (req, res) => {
       }
     );
 
-    const reviews = reviewResponse.data.data.map(item => {
-      const customer = item.Customer || {};
-
-      return {
-        first_name: customer.first_name?.trim() || "",
-        review: item.Review || "",
-        image: item.Image || ""
-      };
-    });
-
-    // --- Return Combined Response ---
+    // Return both raw responses in one payload
     res.json({
-      stores,
-      reviews
+      storeReport: storeResponse.data,
+      reviewReport: reviewResponse.data
     });
 
   } catch (err) {
@@ -88,6 +63,7 @@ app.get("/api/stores", async (req, res) => {
     });
   }
 });
+
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
