@@ -2,16 +2,19 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
+const multer = require("multer");
+const FormData = require("form-data");
 
 const app = express();
 app.use(cors());
-app.use(express.json()); // to parse JSON request body
 
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
+
 let accessToken = "";
 
+// 🪙 Refresh access token
 async function getAccessToken() {
   const res = await axios.post("https://accounts.zoho.com/oauth/v2/token", null, {
     params: {
@@ -25,7 +28,63 @@ async function getAccessToken() {
   return accessToken;
 }
 
-// GET route to fetch store + review data
+// 🧠 Multer setup to handle image uploads in memory
+const upload = multer({ storage: multer.memoryStorage() });
+
+/**
+ * 📥 Submit new Review to Zoho Creator
+ */
+app.post("/api/reviews", upload.single("Image"), async (req, res) => {
+  try {
+    await getAccessToken();
+
+    const { Store, Customer, Review, Rating } = req.body;
+    const file = req.file;
+
+    if (!Store || !Customer || !Review || !Rating) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const formData = new FormData();
+    formData.append("data", JSON.stringify({
+      Store,
+      Customer_name,
+      Review,
+      Rating: parseInt(Rating, 10)
+    }));
+
+    if (file) {
+      formData.append("Image", file.buffer, {
+        filename: file.originalname,
+        contentType: file.mimetype
+      });
+    }
+
+    const response = await axios.post(
+      "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/form/Review",
+      formData,
+      {
+        headers: {
+          ...formData.getHeaders(),
+          Authorization: `Zoho-oauthtoken ${accessToken}`
+        }
+      }
+    );
+
+    res.status(201).json({ message: "Review submitted successfully", response: response.data });
+
+  } catch (err) {
+    console.error("Upload error:", err.response?.data || err.message);
+    res.status(500).json({
+      error: "Upload failed",
+      details: err.response?.data || err.message
+    });
+  }
+});
+
+/**
+ * 📤 Return combined data from Store_Report and Review_Report
+ */
 app.get("/api/stores", async (req, res) => {
   try {
     await getAccessToken();
@@ -79,44 +138,6 @@ app.get("/api/stores", async (req, res) => {
   }
 });
 
-// POST route to submit a new review
-app.post("/api/reviews", async (req, res) => {
-  try {
-    await getAccessToken();
-
-    const { Store, Customer_name, Review, Rating } = req.body;
-
-    if (!Store || !Customer_name || !Review || !Rating) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    const createResponse = await axios.post(
-      "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/form/Review",
-      {
-        data: {
-          Store,
-          Customer_name,
-          Review,
-          Rating
-        }
-      },
-      {
-        headers: {
-          Authorization: `Zoho-oauthtoken ${accessToken}`,
-          "Content-Type": "application/json"
-        }
-      }
-    );
-
-    res.status(201).json({ message: "Review submitted successfully", response: createResponse.data });
-  } catch (err) {
-    console.error("Error creating review:", err.response?.data || err.message);
-    res.status(500).json({
-      error: "Failed to submit review",
-      details: err.response?.data || err.message
-    });
-  }
-});
-
+// 🚀 Start server
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Server listening on port ${PORT}`));
