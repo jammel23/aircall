@@ -11,19 +11,39 @@ const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
 let accessToken = "";
 
+// Improved error handling for token refresh
 async function getAccessToken() {
-  const res = await axios.post("https://accounts.zoho.com/oauth/v2/token", null, {
-    params: {
-      refresh_token: REFRESH_TOKEN,
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      grant_type: "refresh_token"
-    }
-  });
-  accessToken = res.data.access_token;
-  return accessToken;
+  try {
+    const res = await axios.post(
+      "https://accounts.zoho.com/oauth/v2/token",
+      null,
+      {
+        params: {
+          refresh_token: REFRESH_TOKEN,
+          client_id: CLIENT_ID,
+          client_secret: CLIENT_SECRET,
+          grant_type: "refresh_token",
+        },
+        timeout: 5000 // Add timeout to prevent hanging
+      }
+    );
+    accessToken = res.data.access_token;
+    return accessToken;
+  } catch (error) {
+    console.error("Failed to refresh access token:", error.message);
+    throw new Error("Failed to authenticate with Zoho");
+  }
 }
 
+// Add rate limiting middleware
+const rateLimit = require("express-rate-limit");
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // limit each IP to 100 requests per windowMs
+});
+app.use(limiter);
+
+// Improved stores endpoint with better address handling
 app.get("/api/stores", async (req, res) => {
   try {
     await getAccessToken();
@@ -32,80 +52,124 @@ app.get("/api/stores", async (req, res) => {
       {
         headers: {
           Authorization: `Zoho-oauthtoken ${accessToken}`,
-          Accept: "application/json"
-        }
+          Accept: "application/json",
+        },
+        timeout: 10000
       }
     );
 
-    const storeData = response.data.data.map(r => {
-      // Debugging: Log the full address structure to see what we're working with
-      console.log("Full Address Object:", r.Address);
+    if (!response.data || !Array.isArray(response.data.data)) {
+      throw new Error("Invalid data format from Zoho");
+    }
+
+    const stores = response.data.data.map((store) => {
+      const addr = store.Address || {};
       
-      // Handle different possible address structures
-      let addressParts = [];
-      
-      // Case 1: Address is a string in display_value
-      if (r.Address && r.Address.display_value) {
-        addressParts.push(r.Address.display_value);
-      } 
-      // Case 2: Address has separate components
-      else if (r.Address) {
-        const addr = r.Address;
-        addressParts = [
-          addr.address_line_1,
-          addr.address_line_2,
-          addr.city,
-          addr.state,
-          addr.zip,
-          addr.country
-        ].filter(Boolean);
-      }
-      // Case 3: Address might be in a different field
-      else if (r['Address_Line_1']) {
-        addressParts = [
-          r['Address_Line_1'],
-          r['Address_Line_2'],
-          r.City,
-          r.State,
-          r.ZIP,
-          r.Country
-        ].filter(Boolean);
-      }
-      
-      // Extract latitude and longitude with more robust checking
-      const lat = parseFloat(r.Address?.latitude || r.Latitude || r.lat);
-      const lng = parseFloat(r.Address?.longitude || r.Longitude || r.lng);
-      
+      // Handle both display_value and separate components
+      const addressParts = [
+        addr.display_value || addr.address_line_1,
+        addr.city,
+        addr.state,
+        addr.zip,
+        addr.country
+      ].filter(Boolean);
+
       return {
-        name: r.Name,
-        address: addressParts.join(', '),
-        // Include separate address components for easier access
-        addressComponents: {
-          line1: r.Address?.address_line_1 || r['Address_Line_1'],
-          line2: r.Address?.address_line_2 || r['Address_Line_2'],
-          city: r.Address?.city || r.City,
-          state: r.Address?.state || r.State,
-          zip: r.Address?.zip || r.ZIP,
-          country: r.Address?.country || r.Country
+        id: store.ID || store.id || null, // Include ID for reference
+        name: store.Name || "Unnamed Store",
+        address: addressParts.join(", "),
+        addressComponents: { // Include structured address components
+          line1: addr.address_line_1,
+          line2: addr.address_line_2,
+          city: addr.city,
+          state: addr.state,
+          zip: addr.zip,
+          country: addr.country,
+          displayValue: addr.display_value
         },
-        lat: isFinite(lat) ? lat : null,
-        lng: isFinite(lng) ? lng : null,
-        contact: r.Contact,
-        website: r.Website,
-        // Include raw address data for debugging
-        rawAddress: r.Address
+        coordinates: {
+          lat: parseFloat(addr.latitude) || null,
+          lng: parseFloat(addr.longitude) || null
+        },
+        contact: store.Contact || "",
+        email: store.Email || "", // Added email if available
+        website: store.Website || "",
+        rawData: store // Include raw data for debugging
       };
     });
 
-    res.json(storeData);
-  } catch (err) {
-    console.error("Zoho API error:", err.response?.data || err.message);
+    res.json(stores);
+  } catch (error) {
+    console.error("Zoho API error:", error.response?.data || error.message);
     res.status(500).json({ 
-      error: "Failed to fetch Zoho data",
-      details: err.response?.data || err.message 
+      error: "Failed to fetch stores",
+      details: error.response?.data || error.message 
     });
   }
 });
 
+// Enhanced reviews endpoint
+app.get("/api/reviews", async (req, res) => {
+  try {
+    const storeName = req.query.store;
+    if (!storeName || typeof storeName !== "string") {
+      return res.status(400).json({ error: "Valid store name is required" });
+    }
+
+    await getAccessToken();
+    const response = await axios.get(
+      "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report",
+      {
+        params: { 
+          criteria: `(Store.first_name == "${storeName.replace(/"/g, '\\"')}")` 
+        },
+        headers: {
+          Authorization: `Zoho-oauthtoken ${accessToken}`,
+          Accept: "application/json",
+        },
+        timeout: 10000
+      }
+    );
+
+    if (!response.data || !Array.isArray(response.data.data)) {
+      return res.json([]); // Return empty array if no reviews
+    }
+
+    const reviews = response.data.data.map((review) => ({
+      id: review.ID || review.id || null,
+      customer: review.Customer || "Anonymous",
+      rating: parseInt(review.Rating) || 0,
+      review: review.Review || "",
+      date: review.Rating_Date || null,
+      images: Array.isArray(review.Image) 
+        ? review.Image.map(img => img.download_url).filter(Boolean)
+        : [],
+      store: review.Store ? review.Store.first_name || review.Store : storeName
+    }));
+
+    res.json(reviews);
+  } catch (error) {
+    console.error("Zoho API error on reviews:", error.response?.data || error.message);
+    res.status(500).json({ 
+      error: "Failed to fetch reviews",
+      details: error.response?.data || error.message 
+    });
+  }
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "healthy" });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error("Server error:", err.stack);
+  res.status(500).json({ error: "Internal server error" });
+});
+
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+});
