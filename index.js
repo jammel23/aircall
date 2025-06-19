@@ -109,9 +109,6 @@ app.get("/api/reviews", async (req, res) => {
     const response = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report",
       {
-        params: { 
-          criteria: `(Store.first_name == "${storeName.replace(/"/g, '\\"')}")` 
-        },
         headers: {
           Authorization: `Zoho-oauthtoken ${accessToken}`,
           Accept: "application/json",
@@ -121,19 +118,26 @@ app.get("/api/reviews", async (req, res) => {
     );
 
     if (!response.data || !Array.isArray(response.data.data)) {
-      return res.json([]); // Return empty array if no reviews
+      return res.json([]);
     }
 
-    const reviews = response.data.data.map((review) => ({
-      id: review.ID || review.id || null,
+    // Filter reviews for the specific store
+    const storeReviews = response.data.data.filter(review => {
+      // Handle both cases where Store might be an object with first_name or just a string
+      const reviewStoreName = review.Store?.first_name || review.Store;
+      return reviewStoreName?.toLowerCase() === storeName.toLowerCase();
+    });
+
+    // Format reviews according to the image
+    const reviews = storeReviews.map((review) => ({
+      id: review.ID,
       customer: review.Customer || "Anonymous",
+      first_name: review.Customer?.split(" ")[0] || "", // Extract first name
       rating: parseInt(review.Rating) || 0,
-      review: review.Review || "",
-      date: review.Rating_Date || null,
-      images: Array.isArray(review.Image) 
-        ? review.Image.map(img => img.download_url).filter(Boolean)
-        : [],
-      store: review.Store ? review.Store.first_name || review.Store : storeName
+      review_text: review.Review || "",
+      rating_date: formatDate(review.Rating_Date), // Format date as dd-MMM-yyyy
+      image: review.Image?.[0]?.download_url || null, // First image URL
+      store: storeName
     }));
 
     res.json(reviews);
@@ -145,6 +149,16 @@ app.get("/api/reviews", async (req, res) => {
     });
   }
 });
+
+// Helper function to format date as dd-MMM-yyyy
+function formatDate(dateString) {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = date.toLocaleString('default', { month: 'short' });
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
+}
 
 // Health check endpoint
 app.get("/health", (req, res) => {
