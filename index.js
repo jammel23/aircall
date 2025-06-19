@@ -11,7 +11,6 @@ app.use(cors());
 const CLIENT_ID = process.env.CLIENT_ID;
 const CLIENT_SECRET = process.env.CLIENT_SECRET;
 const REFRESH_TOKEN = process.env.REFRESH_TOKEN;
-
 let accessToken = "";
 
 // 🔐 Get Zoho OAuth access token
@@ -28,11 +27,11 @@ async function getAccessToken() {
   return accessToken;
 }
 
-// 🧰 Multer middleware
+// 🧰 Multer middleware to handle image uploads
 const upload = multer({ storage: multer.memoryStorage() });
 
 /**
- * 📥 POST /api/reviews — submits a review to Zoho Creator
+ * 📥 POST /api/reviews — Submit a new review
  */
 app.post("/api/reviews", upload.single("Image"), async (req, res) => {
   try {
@@ -45,10 +44,9 @@ app.post("/api/reviews", upload.single("Image"), async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // ✅ Payload formatted for Zoho Creator field types
     const reviewData = {
-      Store: { ID: Store },
-      Customer: { first_name: Customer_name },
+      Store: { ID: Store }, // Store ID from frontend (lookup)
+      Customer: { first_name: Customer_name }, // Customer first name
       Review,
       Rating: parseInt(Rating, 10)
     };
@@ -86,7 +84,7 @@ app.post("/api/reviews", upload.single("Image"), async (req, res) => {
 });
 
 /**
- * 📤 GET /api/stores — returns store + review data
+ * 📤 GET /api/stores — Return Store and Review data
  */
 app.get("/api/stores", async (req, res) => {
   try {
