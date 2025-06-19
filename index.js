@@ -38,28 +38,72 @@ app.get("/api/stores", async (req, res) => {
     );
 
     const storeData = response.data.data.map(r => {
-      const addr = r.Address || {};
-      const parts = [
-        r.Address.display_value || addr.address_line_1 || '',
-        addr.city || '',
-        addr.state || '',
-        addr.zip || '',
-        addr.country || ''
-      ].filter(Boolean);
+      // Debugging: Log the full address structure to see what we're working with
+      console.log("Full Address Object:", r.Address);
+      
+      // Handle different possible address structures
+      let addressParts = [];
+      
+      // Case 1: Address is a string in display_value
+      if (r.Address && r.Address.display_value) {
+        addressParts.push(r.Address.display_value);
+      } 
+      // Case 2: Address has separate components
+      else if (r.Address) {
+        const addr = r.Address;
+        addressParts = [
+          addr.address_line_1,
+          addr.address_line_2,
+          addr.city,
+          addr.state,
+          addr.zip,
+          addr.country
+        ].filter(Boolean);
+      }
+      // Case 3: Address might be in a different field
+      else if (r['Address_Line_1']) {
+        addressParts = [
+          r['Address_Line_1'],
+          r['Address_Line_2'],
+          r.City,
+          r.State,
+          r.ZIP,
+          r.Country
+        ].filter(Boolean);
+      }
+      
+      // Extract latitude and longitude with more robust checking
+      const lat = parseFloat(r.Address?.latitude || r.Latitude || r.lat);
+      const lng = parseFloat(r.Address?.longitude || r.Longitude || r.lng);
+      
       return {
         name: r.Name,
-        address: parts.join(', '),
-        lat: isFinite(+addr.latitude) ? +addr.latitude : null,
-        lng: isFinite(+addr.longitude) ? +addr.longitude : null,
+        address: addressParts.join(', '),
+        // Include separate address components for easier access
+        addressComponents: {
+          line1: r.Address?.address_line_1 || r['Address_Line_1'],
+          line2: r.Address?.address_line_2 || r['Address_Line_2'],
+          city: r.Address?.city || r.City,
+          state: r.Address?.state || r.State,
+          zip: r.Address?.zip || r.ZIP,
+          country: r.Address?.country || r.Country
+        },
+        lat: isFinite(lat) ? lat : null,
+        lng: isFinite(lng) ? lng : null,
         contact: r.Contact,
-        website: r.Website
+        website: r.Website,
+        // Include raw address data for debugging
+        rawAddress: r.Address
       };
     });
 
     res.json(storeData);
   } catch (err) {
     console.error("Zoho API error:", err.response?.data || err.message);
-    res.status(500).json({ error: "Failed to fetch Zoho data" });
+    res.status(500).json({ 
+      error: "Failed to fetch Zoho data",
+      details: err.response?.data || err.message 
+    });
   }
 });
 
