@@ -87,9 +87,14 @@ app.get("/api/stores", async (req, res) => {
         r => r.Contact === store.contact || r.Store_Name?.display_value === store.name
       );
 
+const matchingReview = reviews.find(
+        r => r.Reviews
+      );
+	  
       return {
         ...store,
-        review: matchingReview ? matchingReview.Review || "No review text" : "No review found",
+        review:  matchingReview.Reviews ,
+		  review2:  matchingReview ,
         rating: matchingReview?.Rating || null
       };
     });
