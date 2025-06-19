@@ -89,7 +89,7 @@ app.get("/api/stores", async (req, res) => {
 
       return {
         ...store,
-        review: matchingReview ? matchingReview.Review_Text || "No review text" : "No review found",
+        review: matchingReview ? matchingReview.Review || "No review text" : "No review found",
         rating: matchingReview?.Rating || null
       };
     });
