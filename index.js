@@ -38,25 +38,26 @@ app.get("/api/stores", async (req, res) => {
     );
 
     const storeData = response.data.data.map(r => {
-      const addr = r.Address; // Zoho Address object
-      const parts = [
-        addr.address_line_1,
-        addr.address_line_2,
-        addr.city,
-        addr.state,
-        addr.zip,
-        addr.country
-      ].filter(Boolean); // remove empty segments
+  const addr = r.Address;
+  const parts = [];
 
-      return {
-        name: r.Name,
-        address: parts.join(', '),
-        lat: isFinite(parseFloat(addr.latitude)) ? parseFloat(addr.latitude) : null,
-        lng: isFinite(parseFloat(addr.longitude)) ? parseFloat(addr.longitude) : null,
-        contact: r.Contact,
-        website: r.Website
-      };
-    });
+  if (addr.address_line_1) parts.push(addr.address_line_1);
+  if (addr.address_line_2) parts.push(addr.address_line_2);
+  if (addr.city) parts.push(addr.city);
+  if (addr.state) parts.push(addr.state);
+  if (addr.zip) parts.push(addr.zip);
+  if (addr.country) parts.push(addr.country);
+
+  return {
+    name: r.Name,
+    address: parts.join(', '),
+    lat: isFinite(parseFloat(addr.latitude)) ? parseFloat(addr.latitude) : null,
+    lng: isFinite(parseFloat(addr.longitude)) ? parseFloat(addr.longitude) : null,
+    contact: r.Contact,
+    website: r.Website
+  };
+});
+
 
     res.json(storeData);
   } catch (err) {
