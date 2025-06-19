@@ -99,65 +99,41 @@ app.get("/api/stores", async (req, res) => {
 
 // Fetch reviews
 app.get("/api/reviews", async (req, res) => {
-  try {
-    const storeName = req.query.store;
-    if (!storeName || typeof storeName !== "string") {
-      return res.status(400).json({ error: "Valid store name is required" });
-    }
+  const { store_name } = req.query;
+  if (!store_name) {
+    return res.status(400).json({ error: "Missing store_name query parameter" });
+  }
 
+  try {
     await getAccessToken();
+
     const response = await axios.get(
       "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report",
       {
         headers: {
           Authorization: `Zoho-oauthtoken ${accessToken}`,
-          Accept: "application/json",
+          Accept: "application/json"
         },
-        timeout: 10000
+        params: {
+          criteria: `(Store.first_name == "${store_name}")`
+        }
       }
     );
 
-    if (!response.data || !Array.isArray(response.data.data)) {
-      return res.json([]);
-    }
-
-    // Filter reviews for the specific store
-    const storeReviews = response.data.data.filter(review => {
-      // Handle both cases where Store might be an object with first_name or just a string
-      const reviewStoreName = review.Store?.first_name || review.Store;
-      return reviewStoreName?.toLowerCase() === storeName.toLowerCase();
-    });
-
-    // Format reviews according to the image
-    const reviews = storeReviews.map((review) => ({
-      id: review.ID,
-      customer: review.Customer || "Anonymous",
-      first_name: review.Customer?.split(" ")[0] || "", // Extract first name
-      rating: parseInt(review.Rating) || 0,
-      review_text: review.Review || "",
-      rating_date: formatDate(review.Rating_Date), // Format date as dd-MMM-yyyy
-      image: review.Image?.[0]?.download_url || null, // First image URL
-      store: storeName
+    const reviews = response.data.data.map(r => ({
+      customer: r.Customer || "Anonymous",
+      rating: r.Rating || null,
+      review: r.Review || "",
+      image: r.Image?.[0]?.download_url || null,
+      date: r.Rating_Date || null
     }));
 
     res.json(reviews);
-  } catch (error) {
-    console.error("Zoho API error on reviews:", error.response?.data || error.message);
-    res.status(500).json({ 
-      error: "Failed to fetch reviews",
-      details: error.response?.data || error.message 
-    });
+  } catch (err) {
+    console.error("Zoho Reviews API error:", err.response?.data || err.message);
+    res.status(500).json({ error: "Failed to fetch review data" });
   }
 });
-
-// Helper function to format date as dd-MMM-yyyy
-function formatDate(dateString) {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = date.toLocaleString('default', { month: 'short' });
-  const year = date.getFullYear();
-  return `${day}-${month}-${year}`;
 }
 
 // Health check endpoint
