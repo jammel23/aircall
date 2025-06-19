@@ -111,7 +111,7 @@ app.get("/api/stores", async (req, res) => {
 	
     const storeDataReview = responseReview.data.data.map(r => {
       // Debugging: Log the full address structure to see what we're working with
-      console.log("Full Address Object:", r.Rating);
+      console.log("Full Address Object:", r);
       
       // Handle different possible address structures
       let addressParts = [];
