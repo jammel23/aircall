@@ -44,9 +44,10 @@ app.post("/api/reviews", upload.single("Image"), async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    // ✅ Format for Zoho Creator lookup fields
     const reviewData = {
-      Store: { ID: Store }, // Store ID from frontend (lookup)
-      Customer: { first_name: Customer_name }, // Customer first name
+      Store: { ID: Store },
+      Customer: { first_name: Customer_name },
       Review,
       Rating: parseInt(Rating, 10)
     };
@@ -61,23 +62,37 @@ app.post("/api/reviews", upload.single("Image"), async (req, res) => {
       });
     }
 
-    const response = await axios.post(
-      "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/form/Review",
-      formData,
-      {
-        headers: {
-          ...formData.getHeaders(),
-          Authorization: `Zoho-oauthtoken ${accessToken}`
-        }
+    // ✅ Explicitly include content-length to ensure Zoho parses payload
+    formData.getLength((err, length) => {
+      if (err) {
+        return res.status(500).json({ error: "Failed to compute content length" });
       }
-    );
 
-    res.status(201).json({ message: "Review submitted successfully", response: response.data });
+      axios.post(
+        "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/form/Review",
+        formData,
+        {
+          headers: {
+            ...formData.getHeaders(),
+            'Content-Length': length,
+            Authorization: `Zoho-oauthtoken ${accessToken}`
+          }
+        }
+      ).then(response => {
+        res.status(201).json({ message: "Review submitted successfully", response: response.data });
+      }).catch(error => {
+        console.error("Upload error:", error.response?.data || error.message);
+        res.status(500).json({
+          error: "Upload failed",
+          details: error.response?.data || error.message
+        });
+      });
+    });
 
   } catch (err) {
-    console.error("Upload error:", err.response?.data || err.message);
+    console.error("Unexpected error:", err.response?.data || err.message);
     res.status(500).json({
-      error: "Upload failed",
+      error: "Unexpected failure",
       details: err.response?.data || err.message
     });
   }
