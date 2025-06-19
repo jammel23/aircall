@@ -83,9 +83,9 @@ app.get("/api/stores", async (req, res) => {
 
     // --- Merge Reviews into Stores by Contact or Name (simplified) ---
     const enrichedStores = storeData.map(store => {
-      const matchingReview = reviews.find(
+      /*const matchingReview = reviews.find(
         r => r.Contact === store.contact || r.Store_Name?.display_value === store.name
-      );
+      );*/
 
 const matchingReview = reviews.find(
         r => r.Reviews
