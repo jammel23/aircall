@@ -121,7 +121,7 @@ app.get("/api/stores", async (req, res) => {
        
       };
     });
-    res.json(storeData+","+storeDataReview);
+    res.json(storeDataReview);
   } catch (err) {
     console.error("Zoho API error:", err.response?.data || err.message);
     res.status(500).json({ 
