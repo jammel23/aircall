@@ -36,7 +36,7 @@ app.get("/api/stores", async (req, res) => {
         }
       }
     );
-
+	
     const storeData = response.data.data.map(r => {
       // Debugging: Log the full address structure to see what we're working with
       console.log("Full Address Object:", r.Address);
@@ -98,7 +98,30 @@ app.get("/api/stores", async (req, res) => {
       };
     });
 
-    res.json(storeData);
+
+	const responseReview = await axios.get(
+      "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report",
+      {
+        headers: {
+          Authorization: `Zoho-oauthtoken ${accessToken}`,
+          Accept: "application/json"
+        }
+      }
+    );
+	
+    const storeDataReview = responseReview.data.data.map(r => {
+      // Debugging: Log the full address structure to see what we're working with
+      console.log("Full Address Object:", r.rating);
+      
+      // Handle different possible address structures
+      let addressParts = [];
+      
+      return {
+        rating: r.rating,
+       
+      };
+    });
+    res.json(storeData+","+storeDataReview);
   } catch (err) {
     console.error("Zoho API error:", err.response?.data || err.message);
     res.status(500).json({ 
