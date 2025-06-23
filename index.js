@@ -30,7 +30,9 @@ async function getAccessToken() {
 // 🧰 Multer middleware to handle image uploads
 const upload = multer({ storage: multer.memoryStorage() });
 
-// 📥 POST /api/reviews — Submit a new review
+/**
+ * 📥 POST /api/reviews — Submit a new review
+ */
 app.post("/api/reviews", upload.single("Image"), async (req, res) => {
   try {
     await getAccessToken();
@@ -42,6 +44,7 @@ app.post("/api/reviews", upload.single("Image"), async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    // ✅ Format for Zoho Creator lookup fields
     const reviewData = {
       Store: { ID: Store },
       Customer: { first_name: Customer_name },
@@ -59,8 +62,11 @@ app.post("/api/reviews", upload.single("Image"), async (req, res) => {
       });
     }
 
+    // ✅ Explicitly include content-length to ensure Zoho parses payload
     formData.getLength((err, length) => {
-      if (err) return res.status(500).json({ error: "Failed to compute content length" });
+      if (err) {
+        return res.status(500).json({ error: "Failed to compute content length" });
+      }
 
       axios.post(
         "https://creator.zoho.com/api/v2.1/shopsolarkits/store-review-management/form/Review",
@@ -76,17 +82,25 @@ app.post("/api/reviews", upload.single("Image"), async (req, res) => {
         res.status(201).json({ message: "Review submitted successfully", response: response.data });
       }).catch(error => {
         console.error("Upload error:", error.response?.data || error.message);
-        res.status(500).json({ error: "Upload failed", details: error.response?.data || error.message });
+        res.status(500).json({
+          error: "Upload failed",
+          details: error.response?.data || error.message
+        });
       });
     });
 
   } catch (err) {
     console.error("Unexpected error:", err.response?.data || err.message);
-    res.status(500).json({ error: "Unexpected failure", details: err.response?.data || err.message });
+    res.status(500).json({
+      error: "Unexpected failure",
+      details: err.response?.data || err.message
+    });
   }
 });
 
-// 📤 GET /api/stores — Return Store and Review data
+/**
+ * 📤 GET /api/stores — Return Store and Review data
+ */
 app.get("/api/stores", async (req, res) => {
   try {
     await getAccessToken();
@@ -106,6 +120,7 @@ app.get("/api/stores", async (req, res) => {
       })
     ]);
 
+    // 🏪 Store data
     const formattedStores = storeResponse.data.data.map(store => ({
       Store: store.Name?.zc_display_value || "",
       ID: store.ID,
@@ -117,25 +132,17 @@ app.get("/api/stores", async (req, res) => {
       Contact: store.Contact || ""
     }));
 
-    const formattedReviews = reviewResponse.data.data.map(review => {
-      let imageURL = "";
-      if (review.Image) {
-        const match = review.Image.match(/filepath=(.*)$/);
-        if (match && match[1]) {
-          const fileName = encodeURIComponent(match[1]);
-          imageURL = `https://creatorapp.zohopublic.com/api/file/shopsolarkits/store-review-management/Review/Image/${fileName}`;
-        }
-      }
-
-      return {
-        Store: review.Store?.zc_display_value || "",
-        ID: review.ID,
-        Customer_first_name: review.Customer?.first_name || "",
-        Review: review.Review || "",
-        Image: imageURL,
-        Rating: review.Rating || ""
-      };
-    });
+    // 📝 Review data with proper image view URL
+    const formattedReviews = reviewResponse.data.data.map(review => ({
+      Store: review.Store?.zc_display_value || "",
+      ID: review.ID,
+      Customer_first_name: review.Customer?.first_name || "",
+      Review: review.Review || "",
+      Image: review.Image && review.ID
+        ? `https://creatorapp.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report/${review.ID}/Image/view`
+        : "",
+      Rating: review.Rating || ""
+    }));
 
     res.json({
       storeReport: formattedStores,
@@ -144,10 +151,13 @@ app.get("/api/stores", async (req, res) => {
 
   } catch (err) {
     console.error("Zoho API error:", err.response?.data || err.message);
-    res.status(500).json({ error: "Failed to fetch Zoho data", details: err.response?.data || err.message });
+    res.status(500).json({
+      error: "Failed to fetch Zoho data",
+      details: err.response?.data || err.message
+    });
   }
 });
 
-// 🚀 Start server
+// 🚀 Start the server
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Server listening on port ${PORT}`));
