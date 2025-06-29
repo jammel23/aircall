@@ -132,8 +132,10 @@ app.get("/api/stores", async (req, res) => {
       Contact: store.Contact || ""
     }));
 
-    // 📝 Review data with proper image view URL
-    const formattedReviews = reviewResponse.data.data.map(review => ({
+    // 📝 Review data — handle gracefully if no reviews exist
+    const reviewData = reviewResponse.data?.data || [];
+
+    const formattedReviews = reviewData.map(review => ({
       Store: review.Store?.zc_display_value || "",
       ID: review.ID,
       Customer_first_name: review.Customer?.first_name || "",
