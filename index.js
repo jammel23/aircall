@@ -44,7 +44,6 @@ app.post("/api/reviews", upload.single("Image"), async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // ✅ Format for Zoho Creator lookup fields
     const reviewData = {
       Store: { ID: Store },
       Customer: { first_name: Customer_name },
@@ -62,7 +61,6 @@ app.post("/api/reviews", upload.single("Image"), async (req, res) => {
       });
     }
 
-    // ✅ Explicitly include content-length to ensure Zoho parses payload
     formData.getLength((err, length) => {
       if (err) {
         return res.status(500).json({ error: "Failed to compute content length" });
@@ -120,6 +118,7 @@ app.get("/api/stores", async (req, res) => {
       })
     ]);
 
+    // 🏪 Format store data
     const formattedStores = storeResponse.data.data.map(store => ({
       Store: store.Name?.zc_display_value || "",
       ID: store.ID,
@@ -131,12 +130,16 @@ app.get("/api/stores", async (req, res) => {
       Contact: store.Contact || ""
     }));
 
+    // 📝 Format review data with matching Store_ID
     const formattedReviews = reviewResponse.data.data.map(review => ({
       Store: review.Store?.zc_display_value || "",
+      Store_ID: review.Store?.ID || "",
       ID: review.ID,
       Customer_first_name: review.Customer?.first_name || "",
       Review: review.Review || "",
-      Image: review.Image || "",
+      Image: review.Image && review.ID
+        ? `https://creatorapp.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report/${review.ID}/Image/view`
+        : "",
       Rating: review.Rating || ""
     }));
 
