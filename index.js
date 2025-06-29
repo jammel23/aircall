@@ -120,7 +120,6 @@ app.get("/api/stores", async (req, res) => {
       })
     ]);
 
-    // 🏪 Store data
     const formattedStores = storeResponse.data.data.map(store => ({
       Store: store.Name?.zc_display_value || "",
       ID: store.ID,
@@ -132,17 +131,12 @@ app.get("/api/stores", async (req, res) => {
       Contact: store.Contact || ""
     }));
 
-    // 📝 Review data — handle gracefully if no reviews exist
-    const reviewData = reviewResponse.data?.data || [];
-
-    const formattedReviews = reviewData.map(review => ({
+    const formattedReviews = reviewResponse.data.data.map(review => ({
       Store: review.Store?.zc_display_value || "",
       ID: review.ID,
       Customer_first_name: review.Customer?.first_name || "",
       Review: review.Review || "",
-      Image: review.Image && review.ID
-        ? `https://creatorapp.zoho.com/api/v2.1/shopsolarkits/store-review-management/report/Review_Report/${review.ID}/Image/view`
-        : "",
+      Image: review.Image || "",
       Rating: review.Rating || ""
     }));
 
